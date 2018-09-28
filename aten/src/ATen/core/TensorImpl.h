@@ -422,7 +422,7 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
       data_type_ = caffe2::TypeMeta();
       return;
     }
-    Resize(src.dims());
+    Resize(src.sizes());
     if (numel() > 0) {
       if (data_type_.copy()) {
         CAFFE_ENFORCE(
@@ -783,16 +783,6 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
         std::is_default_constructible<T>::value,
         "Tensor can't hold non-default-constructible types");
     return static_cast<T*>(raw_mutable_data(caffe2::TypeMeta::Make<T>()));
-  }
-
-  /**
-   * Returns the dimensions of the tensor as a vector.
-   */
-  inline const std::vector<int64_t>& dims() const {
-    // TODO: This method will no longer work if we change the
-    // internal representation of dims().  That's BAD.  Let's get
-    // people to stop using this.
-    return sizes_;
   }
 
  protected:

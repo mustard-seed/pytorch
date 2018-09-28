@@ -342,8 +342,8 @@ class CAFFE2_API Tensor final {
     return impl_->numel() * itemsize();
   }
 
-  inline const vector<int64_t>& dims() const {
-    return impl_.get()->dims();
+  inline IntList dims() const {
+    return impl_.get()->sizes();
   }
 
   inline int64_t size_from_dim(int k) const {
