@@ -4,7 +4,7 @@ import torch
 class guassiandistanceBlackBox(torch.autograd.Function):
     
     @staticmethod
-    def forward(ctx, varMu, varSigma, endPoints):
+    def forward(ctx, varMu, varSigma, endPoints, numSample=4):
         '''
         Generates waypoints based on the current variational parameters and compute distances
         
@@ -34,6 +34,8 @@ class guassiandistanceBlackBox(torch.autograd.Function):
         route[0][-1] = endPoints[1]
         routeDistance = utils.routeL1(route)
         ctx.save_for_backward(varMu, varSigma, endPoints)
+        # Non-Tensor arguments needs special treatment
+        ctx.constant = numSample
         return routeDistance
         
     @staticmethod
@@ -47,11 +49,10 @@ class guassiandistanceBlackBox(torch.autograd.Function):
         '''
         
         assert(gradOfOutput.size()[0] == 1), "Derviate of the loss function w.r.t. distance is not a scalar"
-        #Number of samples to generate for each point
-        numSample = 80
         
-        #Read back the saved tensors
-        varMu, varSigma, endPoints = ctx.saved_tensors
+        #Read back the saved tensors and the number of sample to generate for each point
+        varMu, varSigma, endPoints= ctx.saved_tensors
+        numSample = ctx.constant
         m = varMu.size()[0]  #Number of movable points
         n = varMu.size()[1]  #Dimensions
         
@@ -74,19 +75,23 @@ class guassiandistanceBlackBox(torch.autograd.Function):
         if ctx.needs_input_grad[0]:
             #If the means require gradient
             gradVarMu = torch.zeros(m,n)
-            for k in range(m):
-                for i in range(n):
-                    for s in range(numSample):
-                        gradVarMu[k][i] += 1/varSigma[k][i]*(routes[s][k+1][i] - varMu[k][i]) * routeDistances[s]
+            for s in range(numSample):
+                gradVarMu += torch.div(1.0, varSigma) * (routes[s][1:(m+1), :] - varMu) * routeDistances[s]
+            #for k in range(m):
+                #for i in range(n):
+                    #for s in range(numSample):
+                        #gradVarMu[k][i] += 1/varSigma[k][i]*(routes[s][k+1][i] - varMu[k][i]) * routeDistances[s]
             gradVarMu = torch.div(gradVarMu, numSample)
             gradVarMu = torch.mul(gradVarMu, gradOfOutput)
         if ctx.needs_input_grad[1]:
             #If the variances require gradient
             gradVarSigma = torch.zeros(m,n)
-            for k in range(m):
-                for i in range(n):
-                    for s in range(numSample):
-                        gradVarSigma[k][i] += (-1*varSigma[k][i] + (routes[s][k+1][i] - varMu[k][i]).pow(2))*( (varSigma[k][i]).pow(-2) )/2 * routeDistances[s]
+            for s in range(numSample):
+                gradVarSigma += (-1.0 * varSigma + (routes[s][1:(m+1), :] - varMu).pow(2)) * ( varSigma.pow(-2) ) / 2.0 * routeDistances[s]
+            #for k in range(m):
+                #for i in range(n):
+                    #for s in range(numSample):
+                        #gradVarSigma[k][i] += (-1*varSigma[k][i] + (routes[s][k+1][i] - varMu[k][i]).pow(2))*( (varSigma[k][i]).pow(-2) )/2 * routeDistances[s]
             gradVarSigma = torch.div(gradVarSigma, numSample)
             gradVarSigma = torch.mul(gradVarSigma, gradOfOutput)
-        return gradVarMu, gradVarSigma, gradEndPoints
+        return gradVarMu, gradVarSigma, gradEndPoints, None

@@ -15,3 +15,12 @@ def routeL1 (coordinates):
     l2Norm = (coordinates.split(dim=1, split_size=[1,numPoints-1])[-1] - coordinates.split(dim=1, split_size=[numPoints-1,1])[0]).pow(2).sum(dim=(2)).pow(.5).sum(dim=(1))
     return l2Norm
     
+def parameterGenerator(parameters):
+    '''
+    Produce an iteratable list of parameters
+    
+    Keyword arguments:
+    parameters: list of parameters
+    '''
+    for parameter in parameters:
+        yield parameter

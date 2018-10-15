@@ -1,0 +1,97 @@
+import torch
+import matplotlib.pyplot as plt
+import blackBoxLayer as bbLayer
+from utils import parameterGenerator
+import io
+
+class minRouteModel:
+    """
+    A route minimization problem
+    """
+    
+    def __init__(self, \
+        _endPoints, _varMuInitial, _varSigma2Initial):
+        """
+        Initializes the end points, coordinate means, and variance mean
+        """
+        assert (_varMuInitial.size()[0] == _varSigma2Initial.size()[0]), "Number of movable points dervied from the variational means differ from those derived from the variational variances!"
+        assert (_varMuInitial.size()[1] == _varSigma2Initial.size()[1]), "Number of dimenionsdervied from the variational means differ from those derived from the variational variances!"
+        self.numMovablePoints = _varMuInitial.size()[0]  #Number of movable points
+        self.numDimensions = _varSigma2Initial.size()[1]  #Dimensions
+        assert (_endPoints.size()[0] == 2), "Number of end points does not equal to 2!"
+        assert (_endPoints.size()[1] == self.numDimensions), "umber of dimensions of the end points are not consistent with those of the vartional parameters!" 
+        
+        self.varMuInitial = _varMuInitial
+        self.varSigma2Initial = _varSigma2Initial
+        self.endPoints = _endPoints
+    
+    def minimize_route(self, \
+        numRun, numIterations, numSamples, \
+        learningRate, beta1, beta2, \
+        showProgress = False):
+        """
+        Minimize the route
+        
+        Args:
+            numRun (int): Number of training runs to perform using the same initialization
+            numIterations (int): Number of training iterations per run
+            numSamples (int): Number of sampling for gradient estimation
+            learningRate (float): Learnig rate for the Adam optimizer
+            beta1 (float): Adam optimizer parameter
+            beta2 (float): Adam optimizer parameter
+            showProgress (bool): Flag to printing progress to console
+        
+        Returns:
+            The return value (list). [0] is a logger string, and [1] is the pyplot plot
+        """
+        
+        logFile = io.StringIO()
+        
+        # Drawing settings
+        colors = ['r', 'g', 'b', 'c', 'm', 'k']
+        fig, ax = plt.subplots()
+        
+        for runs in range(numRun):
+            listIter = []
+            listLoss = []
+            varMu = torch.Tensor(self.varMuInitial.clone())
+            varMu.requires_grad_()
+            varSigma2 = torch.Tensor(self.varSigma2Initial.clone())
+            varSigma2.requires_grad_()
+            optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma2]), lr=learningRate, betas=(beta1,beta2))
+            logFile.write("===========Run: {}================\n".format(runs))
+            for t in range (numIterations):
+                # Create an alias for the apply function
+                func = bbLayer.guassiandistanceBlackBox.apply
+                
+                
+                #Forward pass
+                distance = func(varMu, varSigma2, self.endPoints, numSamples)
+                loss = distance.pow(2)
+                listIter.append(t)
+                listLoss.append(loss.item())
+                logFile.write(("Iter = {t}, loss={loss}\n") \
+                    .format(t=t, loss=loss.item()))
+                logFile.write (("varMu: {}\n").format(varMu))
+                logFile.write (("varSigma2: {}\n").format(varSigma2))
+                logFile.write (("varMu.grad: {}\n").format(varMu.grad))
+                
+                #Prints progress to console periodically
+                if ( int(t) % int(100) == 0 and showProgress):
+                    print ( ("Run: {r}, iter: {iter}\n") \
+                        .format(r=runs, iter=t))
+                    print (("loss={}\n").format(loss.item()))
+                
+                #Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            
+            ax.plot (listIter, listLoss, color=colors[runs], linewidth=2, linestyle='solid')
+        
+        logString = logFile.getvalue()
+        records = [logString, ax]
+        logFile.close()
+        return records
+        
+

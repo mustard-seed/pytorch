@@ -2,16 +2,7 @@ import torch
 import matplotlib as plt
 import blackBoxLayer as bbLayer
 import time
-
-def parameterGenerator(parameters):
-    '''
-    Produce an iteratable list of parameters
-    
-    Keyword arguments:
-    parameters: list of parameters
-    '''
-    for parameter in parameters:
-        yield parameter
+from utils import parameterGenerator
 
 def main():
     #Declare 2 end points in R^2
@@ -32,6 +23,7 @@ def main():
     print ("Optimization begins.")
     timeBegin = time.time()
     for t in range(iterations):
+        # Create an alias for the apply function
         func = bbLayer.guassiandistanceBlackBox.apply
         
         #distance = func(varMu=varMu, varSigma=varSigma2, endPoints=endPoints) #Bad syntax. "apply() takes no keyword arguments"
