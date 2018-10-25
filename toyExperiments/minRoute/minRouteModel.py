@@ -1,6 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 import blackBoxLayer as bbLayer
+import blackBoxLayerMirrored as bbLayerMirrored
 from utils import parameterGenerator
 import io
 
@@ -28,7 +29,10 @@ class minRouteModel:
     def minimize_route(self, \
         numRun, numIterations, numSamples, \
         learningRate, beta1, beta2, \
-        showProgress = False):
+        showProgress = False, \
+        requiresMuGrad = True,
+        requiresSigmaGrad = True,
+        mirroredSampling = False):
         """
         Minimize the route
         
@@ -55,14 +59,20 @@ class minRouteModel:
             listIter = []
             listLoss = []
             varMu = torch.Tensor(self.varMuInitial.clone())
-            varMu.requires_grad_()
+            if requiresMuGrad:
+                varMu.requires_grad_()
             varSigma2 = torch.Tensor(self.varSigma2Initial.clone())
-            varSigma2.requires_grad_()
+            if requiresSigmaGrad:
+                varSigma2.requires_grad_()
             optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma2]), lr=learningRate, betas=(beta1,beta2))
             logFile.write("===========Run: {}================\n".format(runs))
             for t in range (numIterations):
+                func = None
                 # Create an alias for the apply function
-                func = bbLayer.guassiandistanceBlackBox.apply
+                if (mirroredSampling == False):
+                    func = bbLayer.guassiandistanceBlackBox.apply
+                else:
+                    func = bbLayerMirrored.guassiandistanceBlackBoxMirrored.apply
                 
                 
                 #Forward pass
