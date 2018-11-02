@@ -2,6 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 import blackBoxLayer as bbLayer
 import blackBoxLayerMirrored as bbLayerMirrored
+from normalLayer import normalLayer
 from utils import parameterGenerator
 import io
 
@@ -32,7 +33,9 @@ class minRouteModel:
         showProgress = False, \
         requiresMuGrad = True,
         requiresSigmaGrad = True,
-        mirroredSampling = False):
+        mirroredSampling = False,
+        normalOptimization=False,
+        plotLog = False):
         """
         Minimize the route
         
@@ -64,26 +67,35 @@ class minRouteModel:
             varSigma2 = torch.Tensor(self.varSigma2Initial.clone())
             if requiresSigmaGrad:
                 varSigma2.requires_grad_()
-            optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma2]), lr=learningRate, betas=(beta1,beta2))
+            if (normalOptimization):
+                optimizer = torch.optim.Adam(parameterGenerator([varMu]), lr=learningRate, betas=(beta1,beta2))
+            else:
+                optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma2]), lr=learningRate, betas=(beta1,beta2))
             logFile.write("===========Run: {}================\n".format(runs))
             for t in range (numIterations):
                 func = None
                 # Create an alias for the apply function
-                if (mirroredSampling == False):
+                if (normalOptimization == True):
+                    func = normalLayer
+                elif (mirroredSampling == False):
                     func = bbLayer.guassiandistanceBlackBox.apply
                 else:
                     func = bbLayerMirrored.guassiandistanceBlackBoxMirrored.apply
                 
                 
                 #Forward pass
-                distance = func(varMu, varSigma2, self.endPoints, numSamples)
+                if (normalOptimization == True):
+                    distance = func(varMu, self.endPoints)
+                else:
+                    distance = func(varMu, varSigma2, self.endPoints, numSamples)
                 loss = distance.pow(2)
                 listIter.append(t)
                 listLoss.append(loss.item())
                 logFile.write(("Iter = {t}, loss={loss}\n") \
                     .format(t=t, loss=loss.item()))
                 logFile.write (("varMu: {}\n").format(varMu))
-                logFile.write (("varSigma2: {}\n").format(varSigma2))
+                if (normalOptimization == False):
+                    logFile.write (("varSigma2: {}\n").format(varSigma2))
                 logFile.write (("varMu.grad: {}\n").format(varMu.grad))
                 
                 #Prints progress to console periodically
@@ -96,9 +108,11 @@ class minRouteModel:
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            
-            ax.plot (listIter, listLoss, color=colors[runs], linewidth=2, linestyle='solid')
-        
+
+            if (plotLog):
+                ax.semilogy (listIter, listLoss, color=colors[runs], linewidth=2, linestyle='solid')
+            else:
+                ax.plot(listIter, listLoss, color=colors[runs], linewidth=2, linestyle='solid')
         logString = logFile.getvalue()
         records = [logString, ax]
         logFile.close()

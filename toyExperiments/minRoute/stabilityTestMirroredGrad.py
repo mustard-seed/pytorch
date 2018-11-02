@@ -87,7 +87,7 @@ def main():
     
         records = routeModel.minimize_route(numRun = numRun, \
             numIterations = iterations, numSamples = s, \
-            learningRate = learning_rate, beta1 = beta1, beta2 = beta2, showProgress = True, requiresSigmaGrad = False, mirroredSampling = True)
+            learningRate = learning_rate, beta1 = beta1, beta2 = beta2, showProgress = True, requiresSigmaGrad = True, mirroredSampling = True)
     
         ax = records[1]
         logString = records[0]
@@ -96,8 +96,8 @@ def main():
             logFile.write(logString)
     
         ax.plot([0, iterations], [n, n], linewidth=2, linestyle='dashed', color='k')
-        ax.set_title( ("Antithetic sampling \n" + currTime+"\n m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2}") \
-            .format(m=m, n=n, s = s, lr=learning_rate, beta1=beta1, beta2=beta2))
+        ax.set_title( ("Antithetic sampling \n" + currTime+"\n m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2} \n optimize Mu: {om}, optimize Sigma: {os}") \
+            .format(m=m, n=n, s = s, lr=learning_rate, beta1=beta1, beta2=beta2, om=True, os=True))
         ax.set_xlabel("Iterations", fontsize=12)
         ax.set_ylabel("Loss", fontsize=12)
         plt.savefig(fname="stabilityMirroredOutputs/"+currTime+".png", format='png')
