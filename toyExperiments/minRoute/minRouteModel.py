@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import blackBoxLayer as bbLayer
 import blackBoxLayerMirrored as bbLayerMirrored
 from normalLayer import normalLayer
+import nesLayerMirrored
 from utils import parameterGenerator
 import io
 
@@ -35,6 +36,8 @@ class minRouteModel:
         requiresSigmaGrad = True,
         mirroredSampling = False,
         normalOptimization=False,
+        sNESOptimization=False,
+        fitnessShapingFlag=False,
         plotLog = False):
         """
         Minimize the route
@@ -65,10 +68,14 @@ class minRouteModel:
             if requiresMuGrad:
                 varMu.requires_grad_()
             varSigma2 = torch.Tensor(self.varSigma2Initial.clone())
+            varSigma = torch.tensor(torch.pow(self.varSigma2Initial, 0.5).clone())
             if requiresSigmaGrad:
                 varSigma2.requires_grad_()
+                varSigma.requires_grad_()
             if (normalOptimization):
                 optimizer = torch.optim.Adam(parameterGenerator([varMu]), lr=learningRate, betas=(beta1,beta2))
+            elif (sNESOptimization):
+                optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma]), lr=learningRate, betas=(beta1, beta2))
             else:
                 optimizer = torch.optim.Adam(parameterGenerator([varMu, varSigma2]), lr=learningRate, betas=(beta1,beta2))
             logFile.write("===========Run: {}================\n".format(runs))
@@ -77,6 +84,8 @@ class minRouteModel:
                 # Create an alias for the apply function
                 if (normalOptimization == True):
                     func = normalLayer
+                elif (sNESOptimization == True):
+                    func = nesLayerMirrored.nesLayerMirrored.apply
                 elif (mirroredSampling == False):
                     func = bbLayer.guassiandistanceBlackBox.apply
                 else:
@@ -86,6 +95,8 @@ class minRouteModel:
                 #Forward pass
                 if (normalOptimization == True):
                     distance = func(varMu, self.endPoints)
+                elif (sNESOptimization == True):
+                    distance = func(varMu, varSigma, self.endPoints, numSamples, fitnessShapingFlag)
                 else:
                     distance = func(varMu, varSigma2, self.endPoints, numSamples)
                 loss = distance.pow(2)
@@ -94,8 +105,10 @@ class minRouteModel:
                 logFile.write(("Iter = {t}, loss={loss}\n") \
                     .format(t=t, loss=loss.item()))
                 logFile.write (("varMu: {}\n").format(varMu))
-                if (normalOptimization == False):
+                if (normalOptimization == False and sNESOptimization == False):
                     logFile.write (("varSigma2: {}\n").format(varSigma2))
+                elif (normalOptimization == False):
+                    logFile.write(("varSigma2: {}\n").format(varSigma))
                 logFile.write (("varMu.grad: {}\n").format(varMu.grad))
                 
                 #Prints progress to console periodically

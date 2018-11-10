@@ -1,7 +1,7 @@
 '''
-stabilityTestMirroredGrad.py
+stabilityTestSNESMirrored.py
 Purpose: 
-    Study the stability of the minimization algorithm at the optimal soluution, using antithetic sampling for gradient
+    Study the stability of the minimization algorithm at the optimal soluution, using antithetic sampling and SNES for gradient estimation
 '''
 import torch
 import matplotlib.pyplot as plt
@@ -49,12 +49,12 @@ def main():
     
     #Optimizer settings
     learning_rate = 1e-2
-    beta1 = 0.9
-    beta2 = 0.999
+    beta1 = 0.0
+    beta2 = 0.5
     
    
     for index, m in enumerate(listM):
-        outputDirectory = os.path.join(os.path.dirname(__file__),'stabilityMirroredOutputs')
+        outputDirectory = os.path.join(os.path.dirname(__file__),'stabilitySNESMirroredOutputs')
         if (not os.path.exists(outputDirectory)):
             os.makedirs(outputDirectory)
         currTime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -72,7 +72,7 @@ def main():
         points = np.transpose(np.tile( np.linspace(-0.5, 0.5, num=m, endpoint=False), (n,1)))
     
         varMuInitial = torch.tensor(points, dtype=torch.float)
-        varSigma2Initial = torch.pow(varMuInitial, 2)
+        varSigmaInitial = torch.abs(varMuInitial)
     
     
         if logFlag:
@@ -83,14 +83,14 @@ def main():
                 .format(m=m, n=n, s=s, iter=iterations))
             logFile.write(("Initial varMu: {}\n") \
                 .format(varMuInitial))
-            logFile.write(("Initial varSigma2: {}\n") \
-                .format(varSigma2Initial))
+            logFile.write(("Initial varSigma: {}\n") \
+                .format(varSigmaInitial))
     
-        routeModel = minRouteModel(_endPoints = endPoints, _varMuInitial = varMuInitial, _varSigma2Initial = varSigma2Initial)
+        routeModel = minRouteModel(_endPoints = endPoints, _varMuInitial = varMuInitial, _varSigma2Initial = varSigmaInitial.pow(2.0))
     
         records = routeModel.minimize_route(numRun = numRun, \
             numIterations = iterations, numSamples = s, \
-            learningRate = learning_rate, beta1 = beta1, beta2 = beta2, showProgress = True, requiresSigmaGrad = True, mirroredSampling = True, fitnessShapingFlag=fitnessShapingFlag)
+            learningRate = learning_rate, beta1 = beta1, beta2 = beta2, showProgress = True, requiresSigmaGrad = True, mirroredSampling = True, sNESOptimization=True, fitnessShapingFlag=fitnessShapingFlag)
     
         ax = records[1]
         logString = records[0]
@@ -99,11 +99,11 @@ def main():
             logFile.write(logString)
     
         ax.plot([0, iterations], [n, n], linewidth=2, linestyle='dashed', color='k')
-        ax.set_title( ("Antithetic sampling " + currTime+ " fitness shaping {ff} \n" +"m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2} \n optimize Mu: {om}, optimize Sigma: {os}") \
+        ax.set_title(("Antithetic and SNES sampling. " + "Fitness shaping: {ff} " + currTime+"\n m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2} \n optimize Mu: {om}, optimize Sigma: {os}") \
             .format(m=m, n=n, s = s, lr=learning_rate, beta1=beta1, beta2=beta2, om=True, os=True, ff=fitnessShapingFlag))
         ax.set_xlabel("Iterations", fontsize=12)
         ax.set_ylabel("Loss", fontsize=12)
-        plt.savefig(fname="stabilityMirroredOutputs/"+currTime+".png", format='png')
+        plt.savefig(fname="stabilitySNESMirroredOutputs/"+currTime+".png", format='png')
     
 if __name__ == "__main__":
     main()

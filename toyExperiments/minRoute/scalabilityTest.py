@@ -43,7 +43,11 @@ def main():
         help='Optional flag for mirrored Sampling')
     parser.add_argument('--normalOptimization', action='store_true',
                         help='Optional flag for normal optimization')
-    
+    parser.add_argument('--snesOptimization', action='store_true',
+                        help='Optional flag for SNES optimization')
+    parser.add_argument('--fitnessShapingFlag', action='store_true',
+                        help='Optional flag for enabling fitness shaping')
+
     args = parser.parse_args()
     
     m = args.m[0]
@@ -51,10 +55,12 @@ def main():
     numSample = args.s[0]
     iterations = args.iter[0]
     logFlag = args.logFlag
+    fitnessShapingFlag = args.fitnessShapingFlag
     numRun = 2
     requiresVarGrad = not args.constVariance
     mirroredSampling = args.mirroredSampling
     normalOptimization = args.normalOptimization
+    snesOptimization = args.snesOptimization
     
     currTime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     logFileName = os.path.join(os.path.dirname(__file__),'scalabilityOutputs/'+currTime)
@@ -99,7 +105,7 @@ def main():
         numIterations = iterations, numSamples = numSample, \
         learningRate = learning_rate, beta1 = beta1, beta2 = beta2, showProgress = True, \
         requiresSigmaGrad = requiresVarGrad, mirroredSampling = mirroredSampling, \
-                                        normalOptimization=normalOptimization, plotLog=True)
+                                        normalOptimization=normalOptimization, sNESOptimization=snesOptimization, plotLog=True, fitnessShapingFlag=fitnessShapingFlag)
     
     ax = records[1]
     logString = records[0]
@@ -108,9 +114,9 @@ def main():
         logFile.write(logString)
     
     ax.semilogy([0, iterations], [n, n], linewidth=2, linestyle='dashed', color='k')
-    ax.set_title( ("Scalability Test \n" + currTime+"\n m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2} \n" + \
-        "Constant variances: {constVar}. \n Mirrored Sampling: {mirroredSampling}. Normal Optimization: {no}") \
-        .format(m=m, n=n, s = numSample, lr=learning_rate, beta1=beta1, beta2=beta2, constVar = args.constVariance, mirroredSampling=mirroredSampling, no=normalOptimization))
+    ax.set_title( ("Scalability Test " + currTime + " fitness shaping: {ff} \n" + " m = {m}, n = {n}, s = {s}, lr={lr}, beta1={beta1}, beta2={beta2} \n" + \
+        "Constant variances: {constVar}. Mirrored Samp.: {mirroredSampling}. Normal Opt: {no}, SNES: {snes}") \
+        .format(m=m, n=n, s = numSample, lr=learning_rate, beta1=beta1, beta2=beta2, constVar = args.constVariance, mirroredSampling=mirroredSampling, no=normalOptimization, snes=snesOptimization, ff=fitnessShapingFlag))
     ax.set_xlabel("Iterations", fontsize=12)
     ax.set_ylabel("Loss", fontsize=12)
     if logFlag:

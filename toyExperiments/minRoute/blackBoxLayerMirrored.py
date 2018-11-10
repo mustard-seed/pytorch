@@ -5,7 +5,7 @@ import numpy as np
 class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
     
     @staticmethod
-    def forward(ctx, varMu, varSigma, endPoints, numSample=4):
+    def forward(ctx, varMu, varSigma, endPoints, numSample=4, fitnessShaping=False):
         '''
         Generates waypoints based on the current variational parameters and compute distances
         
@@ -36,7 +36,7 @@ class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
         routeDistance = utils.routeL1(route)
         ctx.save_for_backward(varMu, varSigma, endPoints)
         # Non-Tensor arguments needs special treatment
-        ctx.constant = int(np.ceil(numSample/2) * 2)
+        ctx.constant = [int(np.ceil(numSample/2) * 2), fitnessShaping]
         return routeDistance
         
     @staticmethod
@@ -53,7 +53,8 @@ class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
         
         #Read back the saved tensors and the number of sample to generate for each point
         varMu, varSigma, endPoints= ctx.saved_tensors
-        numSample = ctx.constant
+        numSample = ctx.constant[0]
+        fitnessShapingFlag = ctx.constant[1]
         m = varMu.size()[0]  #Number of movable points
         n = varMu.size()[1]  #Dimensions
         
@@ -75,6 +76,8 @@ class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
         
         #Compute distance for each route
         routeDistances = utils.routeL1(routes)
+        if (fitnessShapingFlag):
+            utilityValues = utils.fitnessShaping(routeDistances)
         
         ##TODO: implement the gradient descent
         gradVarMu = gradVarSigma = gradEndPoints = None
@@ -82,7 +85,10 @@ class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
             #If the means require gradient
             gradVarMu = torch.zeros(m,n)
             for s in range(numSample):
-                gradVarMu += torch.div(1.0, varSigma) * (routes[s][1:(m+1), :] - varMu) * routeDistances[s]
+                if (fitnessShapingFlag):
+                    gradVarMu += torch.div(1.0, varSigma) * (routes[s][1:(m + 1), :] - varMu) * utilityValues[s]
+                else:
+                    gradVarMu += torch.div(1.0, varSigma) * (routes[s][1:(m+1), :] - varMu) * routeDistances[s]
             #for k in range(m):
                 #for i in range(n):
                     #for s in range(numSample):
@@ -93,11 +99,15 @@ class guassiandistanceBlackBoxMirrored(torch.autograd.Function):
             #If the variances require gradient
             gradVarSigma = torch.zeros(m,n)
             for s in range(numSample):
-                gradVarSigma += (-1.0 * varSigma + (routes[s][1:(m+1), :] - varMu).pow(2)) * ( varSigma.pow(-2) ) / 2.0 * routeDistances[s]
+                if (fitnessShapingFlag):
+                    gradVarSigma += (-1.0 * varSigma + (routes[s][1:(m + 1), :] - varMu).pow(2)) * (
+                        varSigma.pow(-2)) / 2.0 * utilityValues[s]
+                else:
+                    gradVarSigma += (-1.0 * varSigma + (routes[s][1:(m+1), :] - varMu).pow(2)) * ( varSigma.pow(-2) ) / 2.0 * routeDistances[s]
             #for k in range(m):
                 #for i in range(n):
                     #for s in range(numSample):
                         #gradVarSigma[k][i] += (-1*varSigma[k][i] + (routes[s][k+1][i] - varMu[k][i]).pow(2))*( (varSigma[k][i]).pow(-2) )/2 * routeDistances[s]
             gradVarSigma = torch.div(gradVarSigma, numSample)
             gradVarSigma = torch.mul(gradVarSigma, gradOfOutput)
-        return gradVarMu, gradVarSigma, gradEndPoints, None
+        return gradVarMu, gradVarSigma, gradEndPoints, None, None
